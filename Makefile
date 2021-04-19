@@ -28,7 +28,7 @@ $(asm_objects): build/%.asm.o : src/%.asm
 	printf "building %s\n" $(patsubst build/%.asm.o, %.asm, $@)
 	nasm -f elf32 $(patsubst build/%.asm.o, src/%.asm, $@) -o $@
 
-build-i386: dist/kernel-i386.bin dist/disk.img size-i386
+build-i386: dist/kernel-i386.bin size-i386
 dist/kernel-i386.elf: $(c_objects) $(asm_objects) linker-i386.ld
 	mkdir -p dist
 	ld -o dist/kernel-i386.elf -T linker-i386.ld $(asm_objects) $(c_objects) -Map=dist/kernel-i386.map
