@@ -1,0 +1,4 @@
+build/
+dist/
+.vscode/
+iso/boot/grub/kernel.bin
