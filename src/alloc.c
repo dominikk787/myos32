@@ -2,69 +2,85 @@
 #include "alloc.h"
 #include "io.h"
 
-uint32_t bitmap[64] = {};
-uint32_t __attribute__((aligned(4096))) alloc_pts[1024 * 2] = {};
+uint32_t __attribute_noinline__ get_physaddr(uint32_t virtualaddr) {
+    uint32_t pdindex = virtualaddr >> 22;
+    uint32_t ptindex = virtualaddr >> 12 & 0x03FF;
 
-void * get_physaddr(void * virtualaddr) {
-    uint32_t pdindex = (uint32_t)virtualaddr >> 22;
-    uint32_t ptindex = (uint32_t)virtualaddr >> 12 & 0x03FF;
+    uint32_t *pd = (uint32_t *)0xFFFFF000;
     // Here you need to check whether the PD entry is present.
-
     if(pd[pdindex] & 1 == 0) return 0xFFFFFFFF;
  
-    uint32_t *pt = (uint32_t *)(pd[pdindex] & 0xFFFFF000);
+    uint32_t *pt = ((uint32_t *)0xFFC00000) + (0x400 * pdindex);
     // Here you need to check whether the PT entry is present.
     if(pt[ptindex] & 1 == 0) return 0xFFFFFFFF;
  
-    return (void *)((pt[ptindex] & 0xFFFFF000) + ((uint32_t)virtualaddr & 0xFFF));
+    return (pt[ptindex] & ~0xFFF) + (virtualaddr & 0xFFF);
 }
-
 void pt_set_entry(void *pt, uint16_t n, uint32_t page, uint8_t user, uint8_t rw, uint8_t present) {
     uint32_t buf = page & 0xFFFFF000;
     buf |= (user & 1) << 2;
     buf |= (rw & 1) << 1;
     buf |= present & 1;
+    printf("pt %03X\n", n << 2);
     ((uint32_t*)pt)[n] = buf;
 }
-void alloc_free_pages(void *addr, uint32_t num) {
-    for(uint32_t n = 0; n < num; n++) {
-        uint32_t phys = alloc_pts[(((uint32_t)addr - 0xE0000000) >> 12) + n] & 0xFFFFF000;
+
+void set_state(drv_mem_t *drv, uint8_t state) {
+    drv_pagealloc_data_t *data = drv->drv_data;
+    for(uint32_t i = 0; i < data->numpts; i++) {
+        printf("pd %u\n", i);
+        pt_set_entry((void*)0xFFFFF000, (data->addr_start >> 22) + i, get_physaddr((uint32_t)data->pts + (i << 12)), 
+            (data->flags & MEM_FLAG_USER) == MEM_FLAG_USER, (data->flags & MEM_FLAG_RO) != MEM_FLAG_RO, state == 1);
+    }
+    data->state = (state == 1);
+}
+void free_page(drv_mem_t *drv, void *addr, uint32_t size) {
+    drv_pagealloc_data_t *data = drv->drv_data;
+    for(uint32_t n = 0; n < size; n++) {
+        uint32_t phys = data->pts[(((uint32_t)addr - data->addr_start) >> 12) + n] & 0xFFFFF000;
+        if(phys < 0x800000 || phys >= (data->total_range + 0x800000)) continue;
         uint32_t bit = (phys - 0x800000) >> 12;
-        bitmap[bit >> 5] &= ~(1 << (bit & 0b11111));
-        // alloc_pts[(((uint32_t)addr - 0xE0000000) >> 12) + n] = 0;
-        printf("free entry %08X at %08X bitmap %08X\n", (((uint32_t)addr - 0xE0000000) >> 12) + n, phys, bitmap[bit >> 5]);
-        pt_set_entry(alloc_pts, (((uint32_t)addr - 0xE0000000) >> 12) + n, 0, 0, 0, 0);
+        data->map[bit >> 5] &= ~(1 << (bit & 0b11111));
+        printf("free entry %08X at %08X bitmap %08X\n", (((uint32_t)addr - data->addr_start) >> 12) + n, phys, data->map[bit >> 5]);
+        pt_set_entry(data->pts, (((uint32_t)addr - data->addr_start) >> 12) + n, 0, 0, 0, 0);
         __asm__("invlpg (%%eax)"::"a"((uint32_t)addr + (n << 12)));
     }
 }
-void *alloc_pages(void *addr, uint32_t num, uint8_t user) {
-    for(uint32_t n = 0; n < num; n++) {
+void *alloc_page(drv_mem_t *drv, void *addr, uint32_t size) {
+    drv_pagealloc_data_t *data = drv->drv_data;
+    for(uint32_t n = 0; n < size; n++) {
         uint32_t free = 0xFFFFFFFF;
-        for(uint8_t i = 0; i < 64; i++)
-            if(bitmap[i] < 0xFFFFFFFF) {
+        for(uint8_t i = 0; i < (data->total_range >> 17); i++)
+            if(data->map[i] < 0xFFFFFFFF) {
                 free = i;
                 break;
             }
         if(free == 0xFFFFFFFF && n > 0)
-            alloc_free_pages(addr, n);
+            free_page(drv, addr, n);
         if(free == 0xFFFFFFFF)
             return (void*)0;
         for(uint8_t i = 0; i < 32; i++)
-            if((bitmap[free] & (1 << i)) == 0) {
-                free = (free * 64) + i;
+            if((data->map[free] & (1 << i)) == 0) {
+                free = (free << 5) + i;
                 break;
             }
-        bitmap[free >> 5] |= 1 << (free & 0b11111);
-        pt_set_entry(alloc_pts, (((uint32_t)addr - 0xE0000000) >> 12) + n, (free << 12) + 0x800000, user, 1, 1);
-        printf("allocated entry %08X at %08X bitmap %08X\n", (((uint32_t)addr - 0xE0000000) >> 12) + n, (free << 12) + 0x800000, bitmap[free >> 5]);
+        data->map[free >> 5] |= 1 << (free & 0b11111);
+        pt_set_entry(data->pts, (((uint32_t)addr - data->addr_start) >> 12) + n, (free << 12) + 0x800000, 
+            (data->flags & MEM_FLAG_USER) == MEM_FLAG_USER, (data->flags & MEM_FLAG_RO) != MEM_FLAG_RO, 1);
+        printf("allocated entry %08X at %08X bitmap %08X\n", (((uint32_t)addr - 0xE0000000) >> 12) + n, (free << 12) + 0x800000, data->map[free >> 5]);
         __asm__("invlpg (%%eax)"::"a"((uint32_t)addr + (n << 12)));
     }
-    // __asm__("mov %%cr3,%%eax; mov %%eax,%%cr3":::"eax");
     return addr;
 }
-void alloc_init() {
-    for(uint32_t i = 0; i < 2048; i++) alloc_pts[i] = 0;
-    for(uint32_t i = 0; i < 64; i++) bitmap[i] = 0;
-    pt_set_entry(pd, 0xE00 >> 2, (uint32_t)alloc_pts - 0xC0000000, 1, 1, 1);
-    pt_set_entry(pd, 0xE04 >> 2, (uint32_t)alloc_pts - 0xC0000000 + 4096, 1, 1, 1);
+
+void drv_pagealloc_init(drv_mem_t *drv) {
+    drv_pagealloc_data_t *data = drv->drv_data;
+    data->state = 0;
+    for(uint32_t i = 0; i < data->numpts; i++) {
+        for(uint32_t j = 0; j < 1024; j++) data->pts[i * 1024 + j] = 0;
+    }
+    drv->set_state = set_state;
+    drv->alloc = alloc_page;
+    drv->free = free_page;
+    drv->unit = 4096;
 }

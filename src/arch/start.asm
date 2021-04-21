@@ -25,14 +25,6 @@ mboot:
     dd low_start
     dd 0
 
-    ; dw 5
-    ; dw 1
-    ; dd 20
-    ; dd 640
-    ; dd 480
-    ; dd 32
-    ; dd 0
-
     dw 0
     dw 0
     dd 8
@@ -49,6 +41,7 @@ low_start:
     mov dword [pd - 0xC0000000 + 4], pt - 0xC0000000 + 0x1000 + 2 + 1
     mov dword [pd - 0xC0000000 + 0xC00], pt - 0xC0000000 + 2 + 1
     mov dword [pd - 0xC0000000 + 0xC04], pt - 0xC0000000 + 0x1000 + 2 + 1
+    mov dword [pd - 0xC0000000 + 0xFFC], pd - 0xC0000000 + 2 + 1
     mov eax, 0
     mov ebx, pt - 0xC0000000
 .loop_pt01:

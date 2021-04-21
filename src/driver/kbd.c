@@ -156,7 +156,7 @@ LEDS:
         temp = shift_map[code]; 
         if(temp == 0) return -1; 
         // caps lock? 
-        if(data->kbd_status & KBD_META_CAPS) { 
+        if((data->kbd_status & KBD_META_CAPS) || ((data->kbd_status & IN_SPECIAL_ANY) != IN_SPECIAL_SHIFT)) { 
             if(temp >= 'A' && temp <= 'Z') 
                 temp = map[code]; 
         } 
@@ -166,7 +166,7 @@ LEDS:
         temp = map[code]; 
         if(temp == 0) 
             return -1; 
-        if(data->kbd_status & KBD_META_CAPS) { 
+        if((data->kbd_status & KBD_META_CAPS) && ((data->kbd_status & IN_SPECIAL_ANY) == 0)) { 
             if(temp >= 'a' && temp <= 'z') 
                 temp = shift_map[code]; 
         } 

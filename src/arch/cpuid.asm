@@ -13,6 +13,7 @@ cpuid0:
     mov [cpuid_vendor + 4], edx
     mov [cpuid_vendor + 8], ecx
     popad
+    ret
 
 cpuid1:
     pushad
@@ -23,6 +24,7 @@ cpuid1:
     mov [cpuid_feature], ecx
     mov [cpuid_feature + 4], edx
     popad
+    ret
 
 cpuid3:
     pushad
@@ -31,6 +33,7 @@ cpuid3:
     mov [cpuid_id], eax
     mov [cpuid_id], ebx
     popad
+    ret
 
 section .bss
 cpuid_vendor: resb 12

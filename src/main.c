@@ -6,6 +6,8 @@
 #include "disk.h"
 #include "alloc.h"
 
+#define MEM_ALLOC_SIZE (256 * 1024 * 1024)
+
 extern void cpuid0();
 extern void cpuid1();
 extern void cpuid3();
@@ -26,6 +28,12 @@ uint16_t screen0_buf[80*25];
 
 drv_kbd_data_t kbd_data;
 drv_in_t kbd = {.drv_data = &kbd_data, .user_data = 0};
+
+uint32_t __attribute__((aligned(4096))) alloc_pts[1024 * 2];
+uint32_t alloc_map[MEM_ALLOC_SIZE >> 17];
+drv_pagealloc_data_t pagealloc_data = {.pts = alloc_pts, .numpts = 2, .map = alloc_map, .total_range = MEM_ALLOC_SIZE, 
+                                        .addr_start = 0xE0000000, .flags = 0};
+drv_mem_t pagealloc = {.drv_data = &pagealloc_data, .user_data = 0};
 
 void printf (const char *format, ...);
 
@@ -206,27 +214,35 @@ void keybord_in(struct _driver_in_t *data, uint8_t ch, uint16_t flags) {
             }
         } else if(ch == 'E') screen0.set_enabled(&screen0, 1, (void*)0xFFFFFFFF);
         else if(ch == 'a') {
-            if(alloc_pages((void*)0xE0000000, 1, 1) == (void*)0xE0000000) printf("alloc ok\n");
+            if(pagealloc.alloc(&pagealloc, (void*)0xE0000000, 1) == (void*)0xE0000000) printf("alloc ok\n");
             else printf("alloc error\n");
         } else if(ch == 't') {
-            for(uint32_t i = 0; i < 1024; i++) if(i % 256 == 0) printf("%08X ", ((uint32_t*)0xE0000000)[i]);
+            for(uint32_t i = 0; i < (pagealloc.unit / 4); i++) 
+                if(i % 256 == 0) printf("%08X ", ((uint32_t*)0xE0000000)[i]);
             printf("\n");
-            for(uint32_t i = 0; i < 1024; i++) ((uint32_t*)0xE0000000)[i] ^= 0x5A5A5A5A;
-            for(uint32_t i = 0; i < 1024; i++) if(i % 256 == 0) printf("%08X ", ((uint32_t*)0xE0000000)[i]);
+            for(uint32_t i = 0; i < (pagealloc.unit / 4); i++) 
+                ((uint32_t*)0xE0000000)[i] ^= 0x5A5A5A5A;
+            for(uint32_t i = 0; i < (pagealloc.unit / 4); i++) 
+                if(i % 256 == 0) printf("%08X ", ((uint32_t*)0xE0000000)[i]);
             printf("\n");
         } else if(ch == 'f') {
-            alloc_free_pages((void*)0xE0000000, 1);
+            pagealloc.free(&pagealloc, (void*)0xE0000000, 1);
+            printf("free ok\n");
         } else if(ch == 'A') {
-            if(alloc_pages((void*)0xE0001000, 8, 1) == (void*)0xE0001000) printf("alloc ok\n");
+            if(pagealloc.alloc(&pagealloc, (void*)0xE0001000, 8) == (void*)0xE0001000) printf("alloc ok\n");
             else printf("alloc error\n");
         } else if(ch == 'T') {
-            for(uint32_t i = 0; i < 8192; i++) if(i % 1024 == 0) printf("%08X ", ((uint32_t*)0xE0001000)[i]);
+            for(uint32_t i = 0; i < (pagealloc.unit * 2); i++) 
+                if(i % 1024 == 0) printf("%08X ", ((uint32_t*)0xE0001000)[i]);
             printf("\n");
-            for(uint32_t i = 0; i < 8192; i++) ((uint32_t*)0xE0001000)[i] ^= 0x5A5A5A5A;
-            for(uint32_t i = 0; i < 8192; i++) if(i % 1024 == 0) printf("%08X ", ((uint32_t*)0xE0001000)[i]);
+            for(uint32_t i = 0; i < (pagealloc.unit * 2); i++) 
+                ((uint32_t*)0xE0001000)[i] ^= 0x5A5A5A5A;
+            for(uint32_t i = 0; i < (pagealloc.unit * 2); i++) 
+                if(i % 1024 == 0) printf("%08X ", ((uint32_t*)0xE0001000)[i]);
             printf("\n");
         } else if(ch == 'F') {
-            alloc_free_pages((void*)0xE0001000, 8);
+            pagealloc.free(&pagealloc, (void*)0xE0001000, 8);
+            printf("free ok\n");
         }
         else screen0.ch(&screen0, ch);
     } else {
@@ -291,26 +307,8 @@ void start_kernel(uint32_t magic, uint32_t addr) {
     __asm__ volatile("sti");
     ide_initialize(0x1F0, 0x3F6, 0x170, 0x376, 0x000);
     ide_ata_access(0, 0, 0, 1, 0x10, mbr);
-    alloc_init();
-    // {
-    //     if(alloc_pages((void*)0xE0000000, 1, 1) == (void*)0xE0000000) {
-    //         printf("allocated\n");
-    //         for(uint32_t i = 0; i < 1024; i++) {
-    //             if(i % 256 == 0) printf("%08X ", ((uint32_t*)0xE0000000)[i]);
-    //             ((uint32_t*)0xE0000000)[i] = 0x5A5A5A5A;
-    //             if(i % 256 == 0) printf("%08X ", ((uint32_t*)0xE0000000)[i]);
-    //         }
-    //         printf("rw ok\n");
-    //         // // alloc_free_pages((void*)0xE0000000, 1);
-    //         // printf("free ok\n");
-    //         for(uint32_t i = 0; i < 1024; i++) {
-    //             if(i % 256 == 0) printf("%08X ", ((uint32_t*)0xE0000000)[i]);
-    //             // ((volatile uint32_t*)0xE0000000)[i] ^= 0x5A5A5A5A;
-    //             if(i % 256 == 0) printf("%08X ", ((uint32_t*)0xE0000000)[i]);
-    //         }
-    //         printf("free rw error\n");
-    //     } else printf("alloc error\n");
-    // }
+    drv_pagealloc_init(&pagealloc);
+    pagealloc.set_state(&pagealloc, 1);
     // uint8_t i = 'a';
     while(1) {
         // screen0.ch(&screen0, i);
