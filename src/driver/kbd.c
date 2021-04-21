@@ -1,7 +1,7 @@
 #include "kernel.h"
-#include "io.h"
-#include "intr.h"
-#include "driver_inout.h"
+#include "arch/io.h"
+#include "arch/intr.h"
+#include "drivers.h"
 
 static drv_in_t *kbddrv;
 

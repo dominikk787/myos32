@@ -1,5 +1,5 @@
-#include "driver_inout.h"
-#include "io.h"
+#include "drivers.h"
+#include "arch/io.h"
 #include <stdint.h>
 #include <stddef.h>
 

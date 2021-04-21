@@ -1,10 +1,12 @@
 #pragma once
 
 #include <stdint.h>
-
-#define KERNEL_REMAP_ADD 0xC0000000
-#define KERNEL_TO_PHYS(addr) ((addr) - KERNEL_REMAP_ADD)
+#include "drivers.h"
 
 extern volatile uint32_t ms_counter;
+extern drv_inout_t *inout_kernel;
+extern drv_mem_t *pagealloc_kernel;
 
-void printf (const char *format, ...);
+void kprint(const char *format, ...);
+void *kmalloc(uint32_t size);
+void kfree(void* addr);

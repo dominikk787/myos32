@@ -1,4 +1,4 @@
-#include "io.h"
+#include "arch/io.h"
 #include "kernel.h"
 #include "disk.h"
 #include <stdint.h>
@@ -112,7 +112,7 @@ static uint8_t ide_polling(uint8_t channel, uint8_t advanced_check);
 static uint8_t ide_print_error(uint32_t drive, uint8_t err);
 
 static uint8_t ide_read(uint8_t channel, uint8_t reg) {
-    // printf("ir %02x %02x    ", (uint32_t)channel, (uint32_t) reg);
+    // kprint("ir %02x %02x    ", (uint32_t)channel, (uint32_t) reg);
     uint8_t result;
     if (reg > 0x07 && reg < 0x0C)
         ide_write(channel, ATA_REG_CONTROL, 0x80 | channels[channel].nIEN);
@@ -130,7 +130,7 @@ static uint8_t ide_read(uint8_t channel, uint8_t reg) {
 }
 
 static void ide_write(uint8_t channel, uint8_t reg, uint8_t data) {
-    // printf("iw %02x %02x %02x    ", (uint32_t)channel, (uint32_t)reg, (uint32_t)data);
+    // kprint("iw %02x %02x %02x    ", (uint32_t)channel, (uint32_t)reg, (uint32_t)data);
     if (reg > 0x07 && reg < 0x0C)
         ide_write(channel, ATA_REG_CONTROL, 0x80 | channels[channel].nIEN);
     if (reg < 0x08)
@@ -152,7 +152,7 @@ static void ide_read_buffer(uint8_t channel, uint8_t reg, uint32_t buffer, uint3
     */
     if (reg > 0x07 && reg < 0x0C)
         ide_write(channel, ATA_REG_CONTROL, 0x80 | channels[channel].nIEN);
-    asm("pushw %es; movw %ds, %ax; movw %ax, %es");
+    asm("push es\n mov ax, ds\n mov es, eax");
     if (reg < 0x08)
         insd(channels[channel].base  + reg - 0x00, buffer, quads);
     else if (reg < 0x0C)
@@ -161,7 +161,7 @@ static void ide_read_buffer(uint8_t channel, uint8_t reg, uint32_t buffer, uint3
         insd(channels[channel].ctrl  + reg - 0x0A, buffer, quads);
     else if (reg < 0x16)
         insd(channels[channel].bmide + reg - 0x0E, buffer, quads);
-    asm("popw %es;");
+    asm("pop es");
     if (reg > 0x07 && reg < 0x0C)
         ide_write(channel, ATA_REG_CONTROL, channels[channel].nIEN);
 }
@@ -198,21 +198,21 @@ static uint8_t ide_print_error(uint32_t drive, uint8_t err) {
     if (err == 0)
         return err;
 
-    printf("IDE:");
-    if (err == 1) {printf("- Device Fault\n     "); err = 19;}
+    kprint("IDE:");
+    if (err == 1) {kprint("- Device Fault\n     "); err = 19;}
     else if (err == 2) {
         uint8_t st = ide_read(ide_devices[drive].Channel, ATA_REG_ERROR);
-        if (st & ATA_ER_AMNF)   {printf("- No Address Mark Found\n     ");   err = 7;}
-        if (st & ATA_ER_TK0NF)   {printf("- No Media or Media Error\n     ");   err = 3;}
-        if (st & ATA_ER_ABRT)   {printf("- Command Aborted\n     ");      err = 20;}
-        if (st & ATA_ER_MCR)   {printf("- No Media or Media Error\n     ");   err = 3;}
-        if (st & ATA_ER_IDNF)   {printf("- ID mark not Found\n     ");      err = 21;}
-        if (st & ATA_ER_MC)   {printf("- No Media or Media Error\n     ");   err = 3;}
-        if (st & ATA_ER_UNC)   {printf("- Uncorrectable Data Error\n     ");   err = 22;}
-        if (st & ATA_ER_BBK)   {printf("- Bad Sectors\n     ");       err = 13;}
-    } else if (err == 3)           {printf("- Reads Nothing\n     "); err = 23;}
-        else if (err == 4)  {printf("- Write Protected\n     "); err = 8;}
-    printf("- [%s %s] %s\n",
+        if (st & ATA_ER_AMNF)   {kprint("- No Address Mark Found\n     ");   err = 7;}
+        if (st & ATA_ER_TK0NF)   {kprint("- No Media or Media Error\n     ");   err = 3;}
+        if (st & ATA_ER_ABRT)   {kprint("- Command Aborted\n     ");      err = 20;}
+        if (st & ATA_ER_MCR)   {kprint("- No Media or Media Error\n     ");   err = 3;}
+        if (st & ATA_ER_IDNF)   {kprint("- ID mark not Found\n     ");      err = 21;}
+        if (st & ATA_ER_MC)   {kprint("- No Media or Media Error\n     ");   err = 3;}
+        if (st & ATA_ER_UNC)   {kprint("- Uncorrectable Data Error\n     ");   err = 22;}
+        if (st & ATA_ER_BBK)   {kprint("- Bad Sectors\n     ");       err = 13;}
+    } else if (err == 3)           {kprint("- Reads Nothing\n     "); err = 23;}
+        else if (err == 4)  {kprint("- Write Protected\n     "); err = 8;}
+    kprint("- [%s %s] %s\n",
         (const char *[]){"Primary", "Secondary"}[ide_devices[drive].Channel], // Use the channel as an index into the array
         (const char *[]){"Master", "Slave"}[ide_devices[drive].Drive], // Same as above, using the drive
         ide_devices[drive].Model);
@@ -321,7 +321,7 @@ void ide_initialize(uint16_t BAR0, uint16_t BAR1, uint16_t BAR2, uint16_t BAR3, 
     // 4- Print Summary:
     for (uint8_t i = 0; i < 4; i++)
         if (ide_devices[i].Reserved == 1) {
-            printf(" Found %s Drive %dMB - %s\n",
+            kprint(" Found %s Drive %dMB - %s\n",
                 (const char *[]){"ATA", "ATAPI"}[ide_devices[i].Type],         /* Type */
                 ide_devices[i].Size / 1024 / 2,               /* Size */
                 ide_devices[i].Model);
@@ -432,7 +432,7 @@ uint8_t ide_ata_access(uint8_t direction, uint8_t drive, uint32_t lba, uint8_t n
         if (direction == 0)
             // PIO Read.
             for (i = 0; i < numsects; i++) {
-                // printf("reading sector\n");
+                // kprint("reading sector\n");
                 if (err = ide_polling(channel, 1))
                     return err; // Polling, set error and exit if there is.
                 // asm("pushw %es");
