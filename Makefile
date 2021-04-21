@@ -7,7 +7,8 @@ asm_objects := $(patsubst src/%.asm, build/%.asm.o, $(asm_sources))
 
 objects := $(c_objects) $(asm_objects)
 
-C_FLAGS := -I inc -m32 -O2 -fno-pie -fno-builtin -fomit-frame-pointer -march=pentium3 -fno-stack-protector -fno-asynchronous-unwind-tables
+C_FLAGS := -I inc -m32 -O2 -fno-pie -fno-builtin -fomit-frame-pointer -march=pentium3 -fno-stack-protector -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections -masm=intel
+LD_FLAGS := --gc-sections
 
 .SILENT: run-i386 $(objects) dist/kernel-i386.elf dist/kernel-i386.bin size-i386 mount umount dist/disk.img clean
 .PHONY: size-i386 mount umount build run build-i386 run-i386
@@ -15,7 +16,7 @@ C_FLAGS := -I inc -m32 -O2 -fno-pie -fno-builtin -fomit-frame-pointer -march=pen
 build: build-i386
 run: run-i386
 
-run-i386: dist/disk.img
+run-i386: build-i386 dist/disk.img
 	qemu-system-i386 -drive file=dist/disk.img,format=raw,index=0,media=disk -monitor stdio
 
 $(c_objects): build/%.o : src/%.c $(headers)
@@ -30,14 +31,16 @@ $(asm_objects): build/%.asm.o : src/%.asm
 
 build-i386: dist/kernel-i386.bin size-i386
 dist/kernel-i386.elf: $(c_objects) $(asm_objects) linker-i386.ld
+	printf "linking %s\n" $@
 	mkdir -p dist
-	ld -o dist/kernel-i386.elf -T linker-i386.ld $(asm_objects) $(c_objects) -Map=dist/kernel-i386.map
+	ld -o dist/kernel-i386.elf -T linker-i386.ld $(asm_objects) $(c_objects) -Map=dist/kernel-i386.map $(LD_FLAGS)
 	objdump -d dist/kernel-i386.elf -M i386 -M intel > dist/kernel-i386.disasm
 
 dist/kernel-i386.bin: dist/kernel-i386.elf
 	objcopy -O binary dist/kernel-i386.elf dist/kernel-i386.bin -R .bss.*
 
 size-i386: dist/kernel-i386.elf
+	printf "size\n"
 	size dist/kernel-i386.elf
 
 mount:

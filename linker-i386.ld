@@ -1,10 +1,6 @@
 OUTPUT_ARCH("i386")
 ENTRY(low_start) 
 SECTIONS { 
-    /*. = 0xC0000000;
-    .bss.low : AT (ADDR (.bss.low) - 0xC0000000) {
-        *(.bss.low_mem)
-    }*/
     . = 1M;
     _code = .;
     .multiboot : {
@@ -14,16 +10,19 @@ SECTIONS {
     . += 0xC0000000;
     .text : AT (ADDR (.text) - 0xC0000000) { 
         *(.text) 
+        *(.text.*) 
     } 
     . = ALIGN (4K);
     .data : AT (ADDR (.data) - 0xC0000000) { 
         *(.rodata)
         *(.rodata.*)
         *(.data) 
+        *(.data.*) 
     } 
     _edata = . - 0xC0000000;
     .bss : /*AT (ADDR (.bss) - 0xC0000000)*/ { 
         *(.bss) 
+        *(.bss.*) 
         *(.COMMON)
     } 
     . = ALIGN (4K);

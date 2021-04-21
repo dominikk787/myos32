@@ -105,13 +105,13 @@ uint8_t ide_buf[2048] = {0};
 static uint8_t ide_irq_invoked = 0;
 static uint8_t atapi_packet[12] = {0xA8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-uint8_t ide_read(uint8_t channel, uint8_t reg);
-void ide_write(uint8_t channel, uint8_t reg, uint8_t data);
-void ide_read_buffer(uint8_t channel, uint8_t reg, uint32_t buffer, uint32_t quads);
-uint8_t ide_polling(uint8_t channel, uint8_t advanced_check);
-uint8_t ide_print_error(uint32_t drive, uint8_t err);
+static uint8_t ide_read(uint8_t channel, uint8_t reg);
+static void ide_write(uint8_t channel, uint8_t reg, uint8_t data);
+static void ide_read_buffer(uint8_t channel, uint8_t reg, uint32_t buffer, uint32_t quads);
+static uint8_t ide_polling(uint8_t channel, uint8_t advanced_check);
+static uint8_t ide_print_error(uint32_t drive, uint8_t err);
 
-uint8_t ide_read(uint8_t channel, uint8_t reg) {
+static uint8_t ide_read(uint8_t channel, uint8_t reg) {
     // printf("ir %02x %02x    ", (uint32_t)channel, (uint32_t) reg);
     uint8_t result;
     if (reg > 0x07 && reg < 0x0C)
@@ -129,7 +129,7 @@ uint8_t ide_read(uint8_t channel, uint8_t reg) {
     return result;
 }
 
-void ide_write(uint8_t channel, uint8_t reg, uint8_t data) {
+static void ide_write(uint8_t channel, uint8_t reg, uint8_t data) {
     // printf("iw %02x %02x %02x    ", (uint32_t)channel, (uint32_t)reg, (uint32_t)data);
     if (reg > 0x07 && reg < 0x0C)
         ide_write(channel, ATA_REG_CONTROL, 0x80 | channels[channel].nIEN);
@@ -145,7 +145,7 @@ void ide_write(uint8_t channel, uint8_t reg, uint8_t data) {
         ide_write(channel, ATA_REG_CONTROL, channels[channel].nIEN);
 }
 
-void ide_read_buffer(uint8_t channel, uint8_t reg, uint32_t buffer, uint32_t quads) {
+static void ide_read_buffer(uint8_t channel, uint8_t reg, uint32_t buffer, uint32_t quads) {
     /* WARNING: This code contains a serious bug. The inline assembly trashes ES and
     *           ESP for all of the code the compiler generates between the inline
     *           assembly blocks.
@@ -154,19 +154,19 @@ void ide_read_buffer(uint8_t channel, uint8_t reg, uint32_t buffer, uint32_t qua
         ide_write(channel, ATA_REG_CONTROL, 0x80 | channels[channel].nIEN);
     asm("pushw %es; movw %ds, %ax; movw %ax, %es");
     if (reg < 0x08)
-        insl(channels[channel].base  + reg - 0x00, buffer, quads);
+        insd(channels[channel].base  + reg - 0x00, buffer, quads);
     else if (reg < 0x0C)
-        insl(channels[channel].base  + reg - 0x06, buffer, quads);
+        insd(channels[channel].base  + reg - 0x06, buffer, quads);
     else if (reg < 0x0E)
-        insl(channels[channel].ctrl  + reg - 0x0A, buffer, quads);
+        insd(channels[channel].ctrl  + reg - 0x0A, buffer, quads);
     else if (reg < 0x16)
-        insl(channels[channel].bmide + reg - 0x0E, buffer, quads);
+        insd(channels[channel].bmide + reg - 0x0E, buffer, quads);
     asm("popw %es;");
     if (reg > 0x07 && reg < 0x0C)
         ide_write(channel, ATA_REG_CONTROL, channels[channel].nIEN);
 }
 
-uint8_t ide_polling(uint8_t channel, uint8_t advanced_check) {
+static uint8_t ide_polling(uint8_t channel, uint8_t advanced_check) {
     // (I) Delay 400 nanosecond for BSY to be set:
     // -------------------------------------------------
     for(int i = 0; i < 4; i++)
@@ -194,7 +194,7 @@ uint8_t ide_polling(uint8_t channel, uint8_t advanced_check) {
     return 0; // No Error.
 }
 
-uint8_t ide_print_error(uint32_t drive, uint8_t err) {
+static uint8_t ide_print_error(uint32_t drive, uint8_t err) {
     if (err == 0)
         return err;
 

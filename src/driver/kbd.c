@@ -50,7 +50,7 @@ static void write_kbd(unsigned adr, unsigned data) {
 #define KBD_META_NUM 0x2000 
 #define KBD_META_SCRL 0x4000 
 
-uint16_t set1_scancode_to_ascii(drv_in_t *drv, uint16_t code) { 
+static uint16_t set1_scancode_to_ascii(drv_in_t *drv, uint16_t code) { 
     drv_kbd_data_t *data = drv->drv_data;
     static const unsigned char map[] = { 
         0, 0x1B, '1', '2', '3', '4', '5', '6', // 00
