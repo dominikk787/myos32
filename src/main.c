@@ -5,12 +5,13 @@
 #include "disk.h"
 #include "drivers.h"
 #include "arch/cpuid.h"
+#include "ext2.h"
 
 #define MEM_ALLOC_SIZE (256 * 1024 * 1024)
 
 uint32_t mb_magic, mb_addr, irq0_print = 0;
 volatile uint32_t ms_counter = 0;
-uint8_t mbr[512];
+uint8_t mbr[512], disk_data[512];
 
 extern drv_inout_t inout0;
 
@@ -178,18 +179,18 @@ void keybord_in(struct _driver_in_t *data, uint8_t ch, uint16_t flags) {
         if(ch == 'M') check_multiboot();
         else if(ch == 'C') irq0_print = 1;
         else if(ch == 'c') irq0_print = 0;
-        else if(ch == '0') {
+        else if(ch == 'q') {
             cpuid0();
             kprint("max cpuid: 0x%x\n", cpuid_max);
             screen0.str(&screen0, "cpu vendor: \"");
             for(uint8_t i = 0; i < 12; i++) screen0.ch(&screen0, cpuid_vendor[i]);
             screen0.str(&screen0, "\"\n");
-        } else if(ch == '1') {
+        } else if(ch == 'w') {
             cpuid1();
             kprint("cpu version: 0x%x\n", cpuid_version);
             kprint("cpu additional: 0x%x\n", cpuid_additional);
             kprint("cpu features: 0x%x 0x%x\n", cpuid_feature[0], cpuid_feature[1]);
-        } else if(ch == '3') {
+        } else if(ch == 'e') {
             cpuid3();
             kprint("cpu id: 0x%x 0x%x\n", cpuid_id[0], cpuid_id[1]);
         } else if(ch == 'D') {
@@ -228,6 +229,10 @@ void keybord_in(struct _driver_in_t *data, uint8_t ch, uint16_t flags) {
         } else if(ch == 'F') {
             pagealloc.free(&pagealloc, (void*)0xE0001000, 8);
             kprint("free ok\n");
+        } else if(ch >= '0' && ch <= '9') {
+            uint32_t n = ch - '0' + ((uint32_t*)(mbr + 446))[2];
+            kprint("reading lba %u\n", n);
+            ide_ata_access(0, 0, n, 1, 0x10, disk_data);
         }
         else screen0.ch(&screen0, ch);
     } else {
@@ -255,6 +260,27 @@ void keybord_in(struct _driver_in_t *data, uint8_t ch, uint16_t flags) {
                     kprint("partition type 0x%02X\n", (uint32_t)mbr[446 + 4]);
                     kprint("first lba 0x%08X\n", ((uint32_t*)(mbr + 446))[2]);
                     kprint("last lba 0x%08X\n", ((uint32_t*)(mbr + 446))[3]);
+                } else if(ch == IN_KEY_F10) {
+                    screen0.clear(&screen0);
+                    for(uint16_t i = 0; i < 256; i++) {
+                        kprint("%02X ", (uint32_t)disk_data[i]);
+                        if((i % 16) == 15) kprint("\n");
+                    }
+                } else if(ch == IN_KEY_F11) {
+                    screen0.clear(&screen0);
+                    for(uint16_t i = 256; i < 512; i++) {
+                        kprint("%02X ", (uint32_t)disk_data[i]);
+                        if((i % 16) == 15) kprint("\n");
+                    }
+                } else if(ch == IN_KEY_F5) {
+                    screen0.clear(&screen0);
+                    ext2_print_sb();
+                } else if(ch == IN_KEY_F6) {
+                    screen0.clear(&screen0);
+                    ext2_print_bgdt();
+                } else if(ch == IN_KEY_F7) {
+                    screen0.clear(&screen0);
+                    ext2_print_inode();
                 } else kprint("x%02x", (uint32_t)ch);
             } else kprint("x%02x", (uint32_t)ch);
         }
@@ -277,6 +303,8 @@ static void init_int() {
     set_trap_gate(12, &exc12);
     set_trap_gate(13, &exc13);
     set_trap_gate(14, &exc14);
+    set_intr_gate(0x27, &irq7);
+    set_intr_gate(0x2F, &irq15);
 }
 static void init_driver() {
     drv_screen_init(&screen0);
@@ -305,9 +333,11 @@ void start_kernel(uint32_t magic, uint32_t addr) {
     init_int();
     init_driver();
     init_pit();
+    kmalloc_init(0xE0100000, 0);
     kprint("Hello World !!!\n");
     asm("sti");
     ide_initialize(0x1F0, 0x3F6, 0x170, 0x376, 0x000);
     ide_ata_access(0, 0, 0, 1, 0x10, mbr);
+    ext2_init(((uint32_t*)(mbr + 446))[2]);
     while(1) ;
 }

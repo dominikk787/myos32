@@ -8,5 +8,7 @@ extern drv_inout_t *inout_kernel;
 extern drv_mem_t *pagealloc_kernel;
 
 void kprint(const char *format, ...);
+
+void kmalloc_init(uint32_t start, uint32_t current_size);
 void *kmalloc(uint32_t size);
 void kfree(void* addr);

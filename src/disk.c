@@ -87,7 +87,7 @@ struct IDEChannelRegisters {
     uint16_t ctrl;  // Control Base
     uint16_t bmide; // Bus Master IDE
     uint8_t  nIEN;  // nIEN (No Interrupt);
-} channels[2];
+} static channels[2];
 
 struct ide_device {
     uint8_t  Reserved;    // 0 (Empty) or 1 (This Drive really exists).
@@ -99,9 +99,9 @@ struct ide_device {
     uint32_t CommandSets; // Command Sets Supported.
     uint32_t Size;        // Size in Sectors.
     uint8_t  Model[41];   // Model in string.
-} ide_devices[4];
+} static ide_devices[4];
 
-uint8_t ide_buf[2048] = {0};
+static uint8_t ide_buf[2048] = {0};
 static uint8_t ide_irq_invoked = 0;
 static uint8_t atapi_packet[12] = {0xA8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
@@ -321,10 +321,10 @@ void ide_initialize(uint16_t BAR0, uint16_t BAR1, uint16_t BAR2, uint16_t BAR3, 
     // 4- Print Summary:
     for (uint8_t i = 0; i < 4; i++)
         if (ide_devices[i].Reserved == 1) {
-            kprint(" Found %s Drive %dMB - %s\n",
+            kprint(" Found %s Drive %dMB - %s %04X\n",
                 (const char *[]){"ATA", "ATAPI"}[ide_devices[i].Type],         /* Type */
                 ide_devices[i].Size / 1024 / 2,               /* Size */
-                ide_devices[i].Model);
+                ide_devices[i].Model, ide_devices[i].Capabilities);
         }
 }
 
@@ -339,6 +339,7 @@ uint8_t ide_ata_access(uint8_t direction, uint8_t drive, uint32_t lba, uint8_t n
     uint8_t  head, sect, err;
 
     ide_write(channel, ATA_REG_CONTROL, channels[channel].nIEN = (ide_irq_invoked = 0x0) + 0x02);
+    // kprint("capabilities %04X\n", ide_devices[drive].Capabilities);
 
     // (I) Select one from LBA28, LBA48 or CHS;
     if (lba >= 0x10000000) { // Sure Drive should support LBA in this case, or you are
@@ -352,6 +353,7 @@ uint8_t ide_ata_access(uint8_t direction, uint8_t drive, uint32_t lba, uint8_t n
         lba_io[4] = 0; // LBA28 is integer, so 32-bits are enough to access 2TB.
         lba_io[5] = 0; // LBA28 is integer, so 32-bits are enough to access 2TB.
         head      = 0; // Lower 4-bits of HDDEVSEL are not used here.
+        // kprint("ide lba48\n");
     } else if (ide_devices[drive].Capabilities & 0x200)  { // Drive supports LBA?
         // LBA28:
         lba_mode  = 1;
@@ -362,6 +364,7 @@ uint8_t ide_ata_access(uint8_t direction, uint8_t drive, uint32_t lba, uint8_t n
         lba_io[4] = 0; // These Registers are not used here.
         lba_io[5] = 0; // These Registers are not used here.
         head      = (lba & 0xF000000) >> 24;
+        // kprint("ide lba28\n");
     } else {
         // CHS:
         lba_mode  = 0;
@@ -374,6 +377,7 @@ uint8_t ide_ata_access(uint8_t direction, uint8_t drive, uint32_t lba, uint8_t n
         lba_io[4] = 0;
         lba_io[5] = 0;
         head      = (lba + 1  - sect) % (16 * 63) / (63); // Head number is written to HDDEVSEL lower 4-bits.
+        // kprint("ide chs\n");
     }
 
     // (II) See if drive supports DMA or not;
@@ -432,7 +436,7 @@ uint8_t ide_ata_access(uint8_t direction, uint8_t drive, uint32_t lba, uint8_t n
         if (direction == 0)
             // PIO Read.
             for (i = 0; i < numsects; i++) {
-                // kprint("reading sector\n");
+                // kprint("reading sector %u %u\n", i, numsects);
                 if (err = ide_polling(channel, 1))
                     return err; // Polling, set error and exit if there is.
                 // asm("pushw %es");
