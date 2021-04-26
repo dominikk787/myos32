@@ -1,6 +1,7 @@
 #include "arch/intr.h" 
 #include "arch/io.h"
 #include "kernel.h"
+#include <stdio.h>
 
 static unsigned int cached_irq_mask = 0xffff; 
 
@@ -78,5 +79,5 @@ __attribute__ ((weak)) void do_exc9() {((uint16_t*)0xC00B8000)[0] = 0x0F00 | 'j'
 __attribute__ ((weak)) void do_exc10() {((uint16_t*)0xC00B8000)[0] = 0x0F00 | 'm'; while(1) asm("hlt;");}
 __attribute__ ((weak)) void do_exc11() {((uint16_t*)0xC00B8000)[0] = 0x0F00 | 'n'; while(1) asm("hlt;");}
 __attribute__ ((weak)) void do_exc12() {((uint16_t*)0xC00B8000)[0] = 0x0F00 | 'o'; while(1) asm("hlt;");}
-__attribute__ ((weak)) void do_exc13(uint32_t arg) {kprint("gp %08X\n", arg);  ((uint16_t*)0xC00B8000)[0] = 0x0F00 | 'p'; while(1) asm("hlt;");}
-__attribute__ ((weak)) void do_exc14(uint32_t arg) {kprint("pf %08X\n", arg); ((uint16_t*)0xC00B8000)[0] = 0x0F00 | '@'; while(1) asm("hlt;");}
+__attribute__ ((weak)) void do_exc13(uint32_t arg) {printf("gp %08X\n", arg);  ((uint16_t*)0xC00B8000)[0] = 0x0F00 | 'p'; while(1) asm("hlt;");}
+__attribute__ ((weak)) void do_exc14(uint32_t arg) {printf("pf %08X\n", arg); ((uint16_t*)0xC00B8000)[0] = 0x0F00 | '@'; while(1) asm("hlt;");}

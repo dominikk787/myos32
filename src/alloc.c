@@ -1,6 +1,7 @@
 #include "kernel.h"
 #include "drivers.h"
 #include "arch/io.h"
+#include <stdio.h>
 
 uint32_t get_physaddr(uint32_t virtualaddr) {
     uint32_t pdindex = virtualaddr >> 22;
@@ -21,14 +22,14 @@ void pt_set_entry(void *pt, uint16_t n, uint32_t page, uint8_t user, uint8_t rw,
     buf |= (user & 1) << 2;
     buf |= (rw & 1) << 1;
     buf |= present & 1;
-    kprint("pt %03X\n", n << 2);
+    // printf("pt %03X\n", n << 2);
     ((uint32_t*)pt)[n] = buf;
 }
 
 static void set_state(drv_mem_t *drv, uint8_t state) {
     drv_pagealloc_data_t *data = drv->drv_data;
     for(uint32_t i = 0; i < data->numpts; i++) {
-        kprint("pd %u\n", i);
+        // printf("pd %u\n", i);
         pt_set_entry((void*)0xFFFFF000, (data->addr_start >> 22) + i, get_physaddr((uint32_t)data->pts + (i << 12)), 
             (data->flags & MEM_FLAG_USER) == MEM_FLAG_USER, (data->flags & MEM_FLAG_RO) != MEM_FLAG_RO, state == 1);
     }
@@ -41,7 +42,7 @@ static void free_page(drv_mem_t *drv, void *addr, uint32_t size) {
         if(phys < 0x800000 || phys >= (data->total_range + 0x800000)) continue;
         uint32_t bit = (phys - 0x800000) >> 12;
         data->map[bit >> 5] &= ~(1 << (bit & 0b11111));
-        kprint("free entry %08X at %08X bitmap %08X\n", (((uint32_t)addr - data->addr_start) >> 12) + n, phys, data->map[bit >> 5]);
+        // printf("free entry %08X at %08X bitmap %08X\n", (((uint32_t)addr - data->addr_start) >> 12) + n, phys, data->map[bit >> 5]);
         pt_set_entry(data->pts, (((uint32_t)addr - data->addr_start) >> 12) + n, 0, 0, 0, 0);
         invlpg((uint32_t)addr + (n << 12));
     }
@@ -67,7 +68,7 @@ static void *alloc_page(drv_mem_t *drv, void *addr, uint32_t size) {
         data->map[free >> 5] |= 1 << (free & 0b11111);
         pt_set_entry(data->pts, (((uint32_t)addr - data->addr_start) >> 12) + n, (free << 12) + 0x800000, 
             (data->flags & MEM_FLAG_USER) == MEM_FLAG_USER, (data->flags & MEM_FLAG_RO) != MEM_FLAG_RO, 1);
-        kprint("allocated entry %08X at %08X bitmap %08X\n", (((uint32_t)addr - 0xE0000000) >> 12) + n, (free << 12) + 0x800000, data->map[free >> 5]);
+        // printf("allocated entry %08X at %08X bitmap %08X\n", (((uint32_t)addr - 0xE0000000) >> 12) + n, (free << 12) + 0x800000, data->map[free >> 5]);
         invlpg((uint32_t)addr + (n << 12));
     }
     return addr;

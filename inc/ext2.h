@@ -86,8 +86,15 @@ typedef struct {
     uint32_t i_osd2[3];
 } ext2_inode_t;
 
+typedef struct {
+    uint32_t inode;
+    uint16_t size;
+    uint8_t str_len;
+    uint8_t type;
+    uint8_t str[1];
+} ext2_direntry_t;
 
 void ext2_init(uint32_t first_lba);
 void ext2_print_sb();
 void ext2_print_bgdt();
-void ext2_print_inode();
+void ext2_print_inodes();
