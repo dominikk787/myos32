@@ -56,6 +56,18 @@ enum {
 	OUT_COLOR_WHITE = 15,
 };
 
+#define PSF_FONT_MAGIC 0x864ab572
+typedef struct {
+    uint32_t magic;         // magic bytes to identify PSF 
+    uint32_t version;       // zero 
+    uint32_t headersize;    // offset of bitmaps in file, 32 
+    uint32_t flags;         // 0 if there's no unicode table 
+    uint32_t numglyph;      // number of glyphs
+    uint32_t bytesperglyph; // size of each glyph 
+    uint32_t height;        // height in pixels 
+    uint32_t width;         // width in pixels 
+} PSF_font;
+
 struct _driver_in_t;
 struct _driver_out_t;
 struct _driver_inout_t;
@@ -71,7 +83,7 @@ typedef struct _driver_out_t {
     void (*clear)(struct _driver_out_t *drv);
     void (*ch)(struct _driver_out_t *drv, char character);
     void (*str)(struct _driver_out_t *drv, char* string);
-    void (*set_color)(struct _driver_out_t *drv, uint8_t foreground, uint8_t background);
+    void (*set_color)(struct _driver_out_t *drv, uint32_t foreground, uint32_t background);
     void (*set_enabled)(struct _driver_out_t *drv, uint8_t enable, void* buffer);
     void *drv_data;
     uint32_t user_data;
@@ -93,11 +105,27 @@ typedef struct {
     uint8_t cursor_end;
     uint8_t enabled;
     void* buffer;
-} drv_screen_data_t;
+} drv_screen_text_data_t;
+typedef struct {
+    uint32_t col;
+    uint32_t row;
+    uint32_t fg;
+    uint32_t bg;
+    uint32_t width;
+    uint32_t height;
+    uint32_t pitch;
+    uint32_t bpp;
+    const PSF_font *font;
+    uint8_t cursor_start;
+    uint8_t cursor_end;
+    uint8_t enabled;
+    void* buffer;
+} drv_screen_graphic_data_t;
 
 typedef struct {
     uint16_t saw_break_code, kbd_status;
 } drv_kbd_data_t;
 
-void drv_screen_init(drv_out_t *drv);
+void drv_screen_text_init(drv_out_t *drv);
+void drv_screen_graphic_init(drv_out_t *drv);
 void drv_kbd_init(drv_in_t *drv);

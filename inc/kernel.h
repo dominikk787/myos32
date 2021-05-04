@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include "drivers.h"
 
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+
 extern volatile uint32_t ms_counter;
 extern drv_inout_t *inout_kernel;
 extern drv_mem_t *pagealloc_kernel;

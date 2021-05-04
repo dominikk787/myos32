@@ -25,6 +25,14 @@ mboot:
     dd low_start
     dd 0
 
+    dw 5
+    dw 1
+    dd 20
+    dd 1024
+    dd 768
+    dd 16
+    dd 0
+
     dw 0
     dw 0
     dd 8
@@ -87,6 +95,16 @@ high_start:
     mov ss, ax
     lidt [idt.pointer]
     call reroute_irqs
+
+    mov eax, cr0
+    and ax, 0xFFFB		;clear coprocessor emulation CR0.EM
+    or ax, 0x22			;set coprocessor monitoring  CR0.MP & CR0.NE
+    mov cr0, eax
+    mov eax, cr4
+    or ax, 3 << 9		;set CR4.OSFXSR and CR4.OSXMMEXCPT at the same time
+    mov cr4, eax
+    finit
+
     call start_kernel
 .stop: 
     hlt

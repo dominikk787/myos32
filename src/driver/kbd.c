@@ -5,14 +5,14 @@
 
 static drv_in_t *kbddrv;
 
-static int read_kbd(void) { 
+static inline int read_kbd(void) { 
     uint32_t timeout; 
     uint8_t stat, data; 
     for(timeout = 500000L; timeout != 0; timeout--) { 
-        stat = inportb(0x64); 
+        stat = inb(0x64); 
         // czekaj gdy bufor klawiatury jest pełny
         if(stat & 0x01) { 
-            data = inportb(0x60); 
+            data = inb(0x60); 
             // pętla, gdt błąd parzystości, lub koniec czasu oczekiwania 
             if((stat & 0xC0) == 0) return data; 
         } 
@@ -20,11 +20,11 @@ static int read_kbd(void) {
     return -1; 
 } 
 
-static void write_kbd(unsigned adr, unsigned data) { 
+static inline void write_kbd(unsigned adr, unsigned data) { 
     unsigned long timeout; 
     unsigned stat; 
     for(timeout = 500000L; timeout != 0; timeout--) { 
-        stat = inportb(0x64); 
+        stat = inb(0x64); 
         // czekaj gdy bufor klawiatury nie zrobi się pusty
         if((stat & 0x02) == 0) break; 
     } 
@@ -32,7 +32,7 @@ static void write_kbd(unsigned adr, unsigned data) {
         // print_str("write_kbd: timeout\n"); 
         return; 
     } 
-    outportb(adr, data); 
+    outb(adr, data); 
 } 
 
 #define RAW1_LEFT_CTRL 0x1D 
@@ -92,26 +92,26 @@ static uint16_t set1_scancode_to_ascii(drv_in_t *drv, uint16_t code) {
     // kod break, które nas na razie interesują to Ctrl, Shift, Alt
     if(data->saw_break_code) { 
         if(code == RAW1_LEFT_ALT || code == RAW1_RIGHT_ALT) 
-            data->kbd_status &= ~IN_SPECIAL_ALT; 
+            data->kbd_status &= (uint16_t)~IN_SPECIAL_ALT; 
         else if(code == RAW1_LEFT_CTRL || code == RAW1_RIGHT_CTRL) 
-            data->kbd_status &= ~IN_SPECIAL_CTRL; 
+            data->kbd_status &= (uint16_t)~IN_SPECIAL_CTRL; 
         else if(code == RAW1_LEFT_SHIFT || code == RAW1_RIGHT_SHIFT) 
-            data->kbd_status &= ~IN_SPECIAL_SHIFT; 
+            data->kbd_status &= (uint16_t)~IN_SPECIAL_SHIFT; 
         data->saw_break_code = 0; 
-        return -1; 
+        return 0xFFFF; 
     } 
     // jeśli to kod make: sprawdź klawisze "meta" podobnie jak powyżej
     if(code == RAW1_LEFT_ALT || code == RAW1_RIGHT_ALT) { 
         data->kbd_status |= IN_SPECIAL_ALT; 
-        return -1; 
+        return 0xFFFF; 
     } 
     if(code == RAW1_LEFT_CTRL || code == RAW1_RIGHT_CTRL) { 
         data->kbd_status |= IN_SPECIAL_CTRL; 
-        return -1; 
+        return 0xFFFF; 
     } 
     if(code == RAW1_LEFT_SHIFT || code == RAW1_RIGHT_SHIFT) { 
         data->kbd_status |= IN_SPECIAL_SHIFT; 
-        return -1; 
+        return 0xFFFF; 
     } 
     // Scroll Lock, Num Lock, i Caps Lock ustawiają diody LED. 
     if(code == RAW1_SCROLL_LOCK) { 
@@ -134,7 +134,7 @@ LEDS:
         if(data->kbd_status & KBD_META_CAPS) 
             temp |= 4; 
         write_kbd(0x60, temp); 
-        return -1; 
+        return 0xFFFF; 
     } 
     // brak konwersji, gdy Alt jest naciśnięty
     // if(kbd_status & KBD_META_ALT) 
@@ -152,9 +152,9 @@ LEDS:
     // konwertuj kod skanowania na kod ASCII 
     if(data->kbd_status & IN_SPECIAL_SHIFT) { 
         // ignoruj niepoprawne kody 
-        if(code >= sizeof(shift_map) / sizeof(shift_map[0])) return -1; 
+        if(code >= sizeof(shift_map) / sizeof(shift_map[0])) return 0xFFFF; 
         temp = shift_map[code]; 
-        if(temp == 0) return -1; 
+        if(temp == 0) return 0xFFFF; 
         // caps lock? 
         if((data->kbd_status & KBD_META_CAPS) || ((data->kbd_status & IN_SPECIAL_ANY) != IN_SPECIAL_SHIFT)) { 
             if(temp >= 'A' && temp <= 'Z') 
@@ -162,24 +162,22 @@ LEDS:
         } 
     } else { 
         if(code >= sizeof(map) / sizeof(map[0])) 
-            return -1; 
+            return 0xFFFF; 
         temp = map[code]; 
         if(temp == 0) 
-            return -1; 
+            return 0xFFFF; 
         if((data->kbd_status & KBD_META_CAPS) && ((data->kbd_status & IN_SPECIAL_ANY) == 0)) { 
             if(temp >= 'a' && temp <= 'z') 
                 temp = shift_map[code]; 
         } 
     } 
-    return temp | (data->kbd_status & IN_SPECIAL_ANY); 
+    return (uint16_t)(temp | (data->kbd_status & IN_SPECIAL_ANY)); 
 } 
 
 void do_irq1(void) { 
-    int16_t key = set1_scancode_to_ascii(kbddrv, inportb(0x60)); 
-    if(key >= 0) { 
-        // if((key & (IN_SPECIAL_ALT | IN_SPECIAL_CTRL)) == 0 && (key & 0xFF) >= ' ' && (key & 0xFF) < IN_KEY_F1) keybord_in(kbd_data, key);
-        // else keybord_ctrl(kbd_data, key & 0xFF, key & 0xFF00);
-        kbddrv->in_clb(kbddrv, key & 0xFF, key & 0xFF00);
+    uint16_t key = set1_scancode_to_ascii(kbddrv, inb(0x60)); 
+    if(key < 0xFFFF) { 
+        kbddrv->in_clb(kbddrv, (uint8_t)key & 0xFF, key & 0xFF00);
     } 
 }
 

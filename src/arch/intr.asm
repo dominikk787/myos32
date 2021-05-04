@@ -8,11 +8,11 @@ irqm_table:
 irqs_table:
     dd do_irq8, do_irq9, do_irq10, do_irq11, do_irq12, do_irq13, do_irq14, do_irq15
 
-global exc0, exc1, exc2, exc3, exc4, exc5, exc6, exc7, exc8, exc9, exc10, exc11, exc12, exc13, exc14
-extern do_exc0, do_exc1, do_exc2, do_exc3, do_exc4, do_exc5, do_exc6, do_exc7, do_exc8, do_exc9, do_exc10, do_exc11, do_exc12, do_exc13, do_exc14 
+global exc0, exc1, exc2, exc3, exc4, exc5, exc6, exc7, exc8, exc9, exc10, exc11, exc12, exc13, exc14, exc16
+extern do_exc0, do_exc1, do_exc2, do_exc3, do_exc4, do_exc5, do_exc6, do_exc7, do_exc8, do_exc9, do_exc10, do_exc11, do_exc12, do_exc13, do_exc14, do_exc16
 exception_table: 
 dd do_exc0, do_exc1, do_exc2, do_exc3, do_exc4, do_exc5, do_exc6, do_exc7 
-dd do_exc8, do_exc9, do_exc10, do_exc11, do_exc12, do_exc13, do_exc14
+dd do_exc8, do_exc9, do_exc10, do_exc11, do_exc12, do_exc13, do_exc14, do_exc16
 
 reroute_irqs: 
     cli 
@@ -141,6 +141,8 @@ irqm:
     mov al,bl
     add al,0x60
     out 0x20,al 
+    ; mov al, 0x20
+    ; out 0x20,al
     call dword [irqm_table+ebx*4] 
     pop ds 
     pop es 
@@ -162,6 +164,9 @@ irqs:
     out 0xA0,al 
     mov al,0x62
     out 0x20,al
+    ; mov al, 0x20
+    ; out 0xA0,al
+    ; out 0x20,al
     call dword [irqs_table+ebx*4] 
     pop ds 
     pop es 
@@ -236,6 +241,10 @@ exc13:
 
 exc14: 
    push dword 14 
+   jmp handle_exception
+
+exc16: 
+   push dword 16 
    jmp handle_exception
 
 handle_exception: 

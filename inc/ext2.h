@@ -93,8 +93,3 @@ typedef struct {
     uint8_t type;
     uint8_t str[1];
 } ext2_direntry_t;
-
-void ext2_init(uint32_t first_lba);
-void ext2_print_sb();
-void ext2_print_bgdt();
-void ext2_print_inodes();

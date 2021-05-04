@@ -2,9 +2,9 @@
 
 #include <stdint.h>
 
-void cpuid0();
-void cpuid1();
-void cpuid3();
+void cpuid0(void);
+void cpuid1(void);
+void cpuid3(void);
 extern char cpuid_vendor[12];
 extern uint32_t cpuid_max;
 extern uint32_t cpuid_version;

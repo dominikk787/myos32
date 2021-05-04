@@ -17,9 +17,9 @@ typedef struct IDTDescr {
 extern desc_table gdt;
 extern idt_table idt; 
 
-void set_intr_gate(uint8_t n, void * addr); 
-void set_trap_gate(uint8_t n, void * addr); 
-void set_system_gate(uint8_t n, void * addr);
+void set_intr_gate(uint8_t n, void (*func)(void)); 
+void set_trap_gate(uint8_t n, void (*func)(void)); 
+void set_system_gate(uint8_t n, void (*func)(void));
 
 void disable_irq(uint8_t irq);
 void enable_irq(uint8_t irq);
@@ -56,3 +56,4 @@ void exc11(void);
 void exc12(void);
 void exc13(void);
 void exc14(void);
+void exc16(void);
